@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Управление приютом — Панель администратора</title>
+  <style>
+    :root {
+      --bg-color: #f0f4f8; --bg-gradient: linear-gradient(160deg, #f0f4f8 0%, #e8f0e9 100%);
+      --card-bg: #ffffff; --text-main: #0f172a; --text-muted: #64748b; --border-color: #e2e8f0;
+      --input-bg: #ffffff; --primary: #16a34a; --radius: 14px;
+      --shadow-sm: 0 2px 8px rgba(15,23,42,0.04); --shadow-md: 0 8px 24px rgba(15,23,42,0.08);
+      --transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    [data-theme="dark"] {
+      --bg-color: #0b1120; --bg-gradient: linear-gradient(160deg, #0b1120 0%, #0f1a14 100%);
+      --card-bg: #1e293b; --text-main: #f1f5f9; --text-muted: #94a3b8; --border-color: #334155;
+      --input-bg: #0f172a; --primary: #4ade80;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.2); --shadow-md: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-gradient);
+      background-attachment: fixed; color: var(--text-main); padding: 36px 20px; max-width: 880px; margin: 0 auto;
+      opacity: 0; transform: translateY(12px); animation: pageFadeIn 0.5s cubic-bezier(0.22,1,0.36,1) forwards;
+      transition: background 0.5s ease, color 0.4s ease; position: relative; min-height: 100vh;
+    }
+    @keyframes pageFadeIn { to { opacity: 1; transform: translateY(0); } }
+    .theme-toggle-btn {
+      position: absolute; top: 28px; right: 20px; z-index: 1001; width: 72px; height: 36px;
+      background: var(--card-bg); border: 2px solid var(--border-color); border-radius: 40px; cursor: pointer;
+      box-shadow: var(--shadow-sm); transition: var(--transition); user-select: none; padding: 0; overflow: hidden;
+    }
+    .theme-toggle-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: var(--shadow-md); border-color: var(--primary); }
+    .theme-icon { position: absolute; top: 2px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1; z-index: 2; pointer-events: none; transition: color 0.35s ease, transform 0.35s ease; }
+    .theme-icon-sun { left: 2px; color: #1e293b; }
+    [data-theme="dark"] .theme-icon-sun { color: #facc15; transform: rotate(90deg); }
+    .theme-icon-moon { left: 38px; opacity: 0.5; }
+    [data-theme="dark"] .theme-icon-moon { opacity: 1; }
+    .theme-slider {
+      position: absolute; top: 2px; left: 2px; width: 28px; height: 28px;
+      background: linear-gradient(135deg, #f59e0b, #f97316); border-radius: 50%;
+      transition: transform 0.45s cubic-bezier(0.34,1.56,0.64,1), background 0.35s ease;
+      box-shadow: 0 2px 8px rgba(245,158,11,0.4); z-index: 1;
+    }
+    [data-theme="dark"] .theme-slider { transform: translateX(36px); background: linear-gradient(135deg, #38bdf8, #818cf8); box-shadow: 0 2px 8px rgba(56,189,248,0.4); }
+    h1, h2 { color: var(--text-main); }
+    h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 8px; }
+    .admin-card { background: var(--card-bg); border: 1px solid var(--border-color); padding: 28px; border-radius: var(--radius); margin-bottom: 28px; box-shadow: var(--shadow-sm); transition: var(--transition); }
+    .admin-card:hover { box-shadow: var(--shadow-md); }
+    .form-group { margin-bottom: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } body { padding-top: 70px; } }
+    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: var(--text-main); }
+    input[type="text"], input[type="file"], select {
+      width: 100%; padding: 11px 13px; border: 1.5px solid var(--border-color); border-radius: 10px;
+      background: var(--input-bg); color: var(--text-main); font-size: 14px; transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.15); }
+    button {
+      background: linear-gradient(135deg, #16a34a, #15803d); color: white; border: none; padding: 12px 20px;
+      border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 700; transition: var(--transition);
+      box-shadow: 0 4px 12px rgba(22,163,74,0.25);
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(22,163,74,0.35); }
+    button:active { transform: scale(0.97); }
+    .btn-edit { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245,158,11,0.25); margin-right: 6px; }
+    .btn-edit:hover { box-shadow: 0 6px 18px rgba(245,158,11,0.35); }
+    .btn-cancel, .btn-clear { background: linear-gradient(135deg, #64748b, #475569); box-shadow: 0 4px 12px rgba(100,116,139,0.2); margin-left: 10px; }
+    .btn-save-contacts { background: linear-gradient(135deg, #0ea5e9, #0284c7); width: 100%; margin-top: 12px; box-shadow: 0 4px 14px rgba(14,165,233,0.3); }
+    .btn-save-contacts:hover { box-shadow: 0 8px 22px rgba(14,165,233,0.4); }
+    .dog-list { margin-top: 20px; }
+    .dog-item {
+      background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 16px 18px;
+      margin-bottom: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow-sm); animation: fadeIn 0.4s cubic-bezier(0.22,1,0.36,1) both; transition: var(--transition);
+    }
+    .dog-item:hover { transform: translateX(4px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    .dog-info { display: flex; align-items: center; gap: 16px; }
+    .dog-info img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; background: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #e2e8f0; color: #475569; margin-left: 6px; }
+    .badge-young { background: #dbeafe; color: #1e40af; }
+    .badge-large { background: #fef3c7; color: #92400e; }
+    [data-theme="dark"] .badge { background: #334155; color: #94a3b8; }
+    [data-theme="dark"] .badge-young { background: #1e3a5f; color: #93c5fd; }
+    [data-theme="dark"] .badge-large { background: #3f2e1a; color: #fcd34d; }
+    .btn-delete { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 4px 12px rgba(239,68,68,0.25); }
+    .btn-delete:hover { box-shadow: 0 6px 18px rgba(239,68,68,0.35); }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; color: #38bdf8; text-decoration: none; font-weight: 700; font-size: 14px; transition: var(--transition); padding: 8px 14px; border-radius: 20px; }
+    .back-link:hover { color: #0ea5e9; background: rgba(14,165,233,0.1); transform: translateX(-4px); }
+    .preview-img { max-width: 160px; max-height: 160px; margin-top: 12px; display: none; border-radius: 12px; object-fit: cover; box-shadow: var(--shadow-md); border: 2px solid var(--border-color); }
+    .section-title { border-bottom: 3px solid var(--primary); padding-bottom: 10px; margin-bottom: 22px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+  <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему">
+    <span class="theme-icon theme-icon-sun">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+        <path d="M12 12 V4 H17" /><path d="M12 12 V4 H17" transform="rotate(45 12 12)" />
+        <path d="M12 12 V4 H17" transform="rotate(90 12 12)" /><path d="M12 12 V4 H17" transform="rotate(135 12 12)" />
+        <path d="M12 12 V4 H17" transform="rotate(180 12 12)" /><path d="M12 12 V4 H17" transform="rotate(225 12 12)" />
+        <path d="M12 12 V4 H17" transform="rotate(270 12 12)" /><path d="M12 12 V4 H17" transform="rotate(315 12 12)" />
+      </svg>
+    </span>
+    <span class="theme-icon theme-icon-moon">🌙</span>
+    <span class="theme-slider"></span>
+  </button>
+  <header>
+    <a href="index.html" class="back-link">← На главную страницу сайта</a>
+    <h1>Управление сайтом приюта</h1>
+  </header>
+  <main>
+    <section class="admin-card">
+      <h2 class="section-title">📞 Редактирование контактов приюта</h2>
+      <form id="contactsForm">
+        <div class="form-row">
+          <div class="form-group"><label for="phone1">Телефон 1:</label><input type="text" id="phone1" required></div>
+          <div class="form-group"><label for="phone2">Телефон 2:</label><input type="text" id="phone2"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="messengers">Часы работы мессенджеров:</label><input type="text" id="messengers"></div>
+          <div class="form-group"><label for="telegramLink">Ссылка на MAX (Кнопка связи):</label><input type="text" id="telegramLink" placeholder="https://max.ru/your_account"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="callsHours">Прием звонков:</label><input type="text" id="callsHours"></div>
+          <div class="form-group"><label for="visitDays">Дни посещений:</label><input type="text" id="visitDays"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="volunteerDays">Выгул с волонтерами:</label><input type="text" id="volunteerDays"></div>
+          <div class="form-group"><label for="visitNotice">Примечание к визитам:</label><input type="text" id="visitNotice"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="location">Локация / Район:</label><input type="text" id="location"></div>
+          <div class="form-group"><label for="address">Точный адрес (или примечание):</label><input type="text" id="address"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="email">Email для связи:</label><input type="text" id="email"></div>
+          <div class="form-group"><label for="vkLink">Ссылка ВКонтакте:</label><input type="text" id="vkLink" placeholder="https://vk.com/your_group"></div>
+        </div>
+        <div class="form-group"><label for="tgChannelLink">Ссылка на MAX-канал:</label><input type="text" id="tgChannelLink" placeholder="https://max.ru/your_channel"></div>
+        <button type="submit" class="btn-save-contacts">💾 Сохранить контактные данные</button>
+      </form>
+    </section>
+    <section class="admin-card">
+      <h2 class="section-title" id="formTitle">🐕 Добавить новую собаку</h2>
+      <form id="addDogForm">
+        <div class="form-group"><label for="name">Кличка:</label><input type="text" id="name" required placeholder="Например: Гром"></div>
+        <div class="form-group"><label for="age">Возраст:</label><input type="text" id="age" required placeholder="Например: 1.5 года"></div>
+        <div class="form-group"><label for="dogLocation">Район / Локация:</label><input type="text" id="dogLocation" placeholder="Например: Ленинский"></div>
+        <div class="form-group">
+          <label for="category">Категория собаки:</label>
+          <select id="category" required>
+            <option value="other">Все остальные (обычные)</option>
+            <option value="young">Молодая собака (до 2 лет)</option>
+            <option value="large">Крупная собака</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="photoFile">Загрузить фото с компьютера (авто-сжатие до ~80КБ):</label>
+          <input type="file" id="photoFile" accept="image/*">
+          <img id="preview" class="preview-img" alt="Предпросмотр">
+        </div>
+        <button type="submit" id="submitBtn">Добавить анкету собаки</button>
+        <button type="button" class="btn-cancel" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">Отмена редактирования</button>
+        <button type="button" class="btn-clear" onclick="clearAllData()">Сбросить анкеты</button>
+      </form>
+    </section>
+    <section>
+      <h2 style="margin-bottom: 12px;">Список добавленных анкет</h2>
+      <div class="dog-list" id="adminDogsList"></div>
+    </section>
+  </main>
+  <script src="js/storage.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
