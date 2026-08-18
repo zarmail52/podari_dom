@@ -149,3 +149,50 @@ function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.75) {
     reader.readAsDataURL(file);
   });
 }
+
+// --- РЕПОЗИТОРИЙ С КАРТИНКАМИ (GitHub API) ---
+// Картинки подтягиваются из репозитория aaa через GitHub API
+const IMG_REPO_OWNER = 'zarmail52';
+const IMG_REPO = 'aaa';
+const IMG_BRANCH = 'main';
+const IMG_CACHE_KEY = 'repoImagesCache';
+const IMG_CACHE_TTL = 10 * 60 * 1000; // 10 минут
+
+// Возвращает полный URL картинки по имени файла из репозитория aaa
+function getImageUrl(filename) {
+  if (!filename) return '';
+  // Если это уже полный URL (data:, http, https, //) — используем как есть
+  if (/^(data:|https?:|\/\/)/i.test(filename)) return filename;
+  return `https://raw.githubusercontent.com/${IMG_REPO_OWNER}/${IMG_REPO}/${IMG_BRANCH}/${encodeURIComponent(filename)}`;
+}
+
+// Получает список картинок из корня репозитория aaa через GitHub API
+async function fetchRepoImages(force = false) {
+  // Используем кэш, чтобы не превышать лимиты GitHub API (60 запросов/час)
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(IMG_CACHE_KEY) || 'null');
+      if (cached && Array.isArray(cached.images) && Date.now() - cached.timestamp < IMG_CACHE_TTL) {
+        return cached.images;
+      }
+    } catch (e) { /* игнорируем повреждённый кэш */ }
+  }
+
+  const url = `https://api.github.com/repos/${IMG_REPO_OWNER}/${IMG_REPO}/contents/`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('GitHub API error: ' + res.status);
+  const items = await res.json();
+
+  const images = items
+    .filter(item => item.type === 'file' && /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(item.name))
+    .map(item => ({
+      name: item.name,
+      url: item.download_url || getImageUrl(item.name)
+    }));
+
+  try {
+    localStorage.setItem(IMG_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), images }));
+  } catch (e) { /* игнорируем ошибку записи кэша */ }
+
+  return images;
+}

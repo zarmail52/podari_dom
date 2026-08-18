@@ -110,12 +110,12 @@ function renderDogs(dogsToRender, animate = true) {
       const locationText = dog.location ? escapeHTML(dog.location) : 'Приют';
       const safeName = escapeHTML(dog.name);
       const safeAge = escapeHTML(dog.age);
-      const safePhoto = escapeHTML(dog.photo);
+      const safePhoto = escapeHTML(getImageUrl(dog.photo));
       const delay = animate ? ` style="animation-delay: ${index * 0.04}s"` : '';
       return `
         <a href="#dog-${dog.id}" class="card"${delay} onclick="openDogProfile(event, ${dog.id})">
           <div class="card-img-wrapper">
-            <img src="${safePhoto}" alt="${safeName}">
+            <img src="${safePhoto}" alt="${safeName}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="#334155"/><text x="50%" y="50%" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="middle">Фото недоступно</text></svg>')}';">
           </div>
           <div class="card-body">
             <div class="card-title">${safeName}, ${safeAge}</div>
@@ -248,7 +248,11 @@ function openDogProfile(event, dogId) {
   // Запоминаем состояние каталога (фильтр + поиск) для кнопки «Назад»
   lastCatalogState = { category: currentCategory, query: searchQuery };
 
-  document.getElementById('profileImg').src = dog.photo;
+  document.getElementById('profileImg').src = getImageUrl(dog.photo);
+  document.getElementById('profileImg').onerror = function() {
+    this.onerror = null;
+    this.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420"><rect width="100%" height="100%" fill="#334155"/><text x="50%" y="50%" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="middle">Фото недоступно</text></svg>');
+  };
   document.getElementById('profileName').textContent = dog.name;
   document.getElementById('profileAgeBadge').textContent = '🎂 Возраст: ' + dog.age;
   document.getElementById('profileLocationBadge').textContent = '📍 Локация: ' + (dog.location || 'Приют');

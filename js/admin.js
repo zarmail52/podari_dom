@@ -1,9 +1,11 @@
 /**
  * ЛОГИКА АДМИН-ПАНЕЛИ (js/admin.js)
+ * Новая система картинок: фото выбираются из репозитория aaa (GitHub API)
  */
 
-let currentPhotoBase64 = '';
+let currentPhotoName = '';
 let editingDogId = null;
+let repoImages = [];
 
 function loadAdminContacts() {
   const c = getContacts();
@@ -45,18 +47,56 @@ document.getElementById('contactsForm')?.addEventListener('submit', function(e) 
   alert('Контактная информация успешно сохранена!');
 });
 
-document.getElementById('photoFile')?.addEventListener('change', async function(e) {
-  const file = e.target.files[0];
-  if (file) {
-    try {
-      currentPhotoBase64 = await compressImage(file, 800, 800, 0.75);
-      const preview = document.getElementById('preview');
-      preview.src = currentPhotoBase64;
-      preview.style.display = 'block';
-    } catch (err) {
-      alert('Ошибка при обработке изображения');
-      console.error(err);
+// --- ЗАГРУЗКА СПИСКА КАРТИНОК ИЗ РЕПОЗИТОРИЯ aaa ---
+function setImgStatus(text, type) {
+  const status = document.getElementById('imgStatus');
+  if (!status) return;
+  status.textContent = text;
+  status.className = 'img-status ' + (type || '');
+}
+
+async function loadRepoImages(force = false) {
+  const select = document.getElementById('photoSelect');
+  if (!select) return;
+
+  setImgStatus('Загрузка списка картинок из репозитория aaa...', 'loading');
+  select.innerHTML = '<option value="">Загрузка...</option>';
+
+  try {
+    repoImages = await fetchRepoImages(force);
+
+    if (repoImages.length === 0) {
+      select.innerHTML = '<option value="">Картинки не найдены в репозитории aaa</option>';
+      setImgStatus('В репозитории aaa не найдено изображений. Загрузите фото в корень репозитория.', 'error');
+      return;
     }
+
+    let options = '<option value="">— Выберите фото —</option>';
+    repoImages.forEach(img => {
+      options += `<option value="${escapeHTML(img.name)}">${escapeHTML(img.name)}</option>`;
+    });
+    select.innerHTML = options;
+    setImgStatus(`Найдено картинок: ${repoImages.length} (репозиторий zarmail52/aaa)`, 'ok');
+  } catch (err) {
+    console.error('Ошибка загрузки списка картинок:', err);
+    select.innerHTML = '<option value="">Ошибка загрузки списка картинок</option>';
+    setImgStatus('Не удалось получить список картинок из GitHub API. Проверьте доступ к интернету или лимиты API.', 'error');
+  }
+}
+
+document.getElementById('refreshImagesBtn')?.addEventListener('click', () => {
+  loadRepoImages(true);
+});
+
+document.getElementById('photoSelect')?.addEventListener('change', function(e) {
+  currentPhotoName = e.target.value;
+  const preview = document.getElementById('preview');
+  if (currentPhotoName) {
+    preview.src = getImageUrl(currentPhotoName);
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+    preview.removeAttribute('src');
   }
 });
 
@@ -83,11 +123,11 @@ function renderAdminList() {
     const safeName = escapeHTML(dog.name);
     const safeAge = escapeHTML(dog.age);
     const safeLocation = dog.location ? `(${escapeHTML(dog.location)})` : '';
-    const safePhoto = escapeHTML(dog.photo);
+    const safePhoto = escapeHTML(getImageUrl(dog.photo));
 
     item.innerHTML = `
       <div class="dog-info">
-        <img src="${safePhoto}" alt="${safeName}">
+        <img src="${safePhoto}" alt="${safeName}" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#334155"/><text x="50%" y="50%" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="10" text-anchor="middle" dominant-baseline="middle">Нет фото</text></svg>')}';">
         <div>
           <strong>${safeName}</strong>, ${safeAge} ${safeLocation}
           ${getCategoryBadge(dog.category)}
@@ -104,8 +144,8 @@ function renderAdminList() {
 
 document.getElementById('addDogForm')?.addEventListener('submit', function(e) {
   e.preventDefault();
-  if (!currentPhotoBase64) {
-    alert('Пожалуйста, выберите фото файл!');
+  if (!currentPhotoName) {
+    alert('Пожалуйста, выберите фото из репозитория aaa!');
     return;
   }
 
@@ -115,13 +155,13 @@ document.getElementById('addDogForm')?.addEventListener('submit', function(e) {
     age: document.getElementById('age').value.trim(),
     location: document.getElementById('dogLocation').value.trim(),
     category: document.getElementById('category').value,
-    photo: currentPhotoBase64
+    photo: currentPhotoName
   };
 
   saveOrUpdateDog(dogData);
   renderAdminList();
   resetDogForm();
-  
+
   alert(editingDogId ? 'Анкета успешно обновлена!' : 'Собака успешно добавлена!');
 });
 
@@ -136,10 +176,29 @@ function editDog(id) {
   document.getElementById('dogLocation').value = dog.location || '';
   document.getElementById('category').value = dog.category || 'other';
 
-  currentPhotoBase64 = dog.photo;
+  // Выбираем фото в списке, если оно есть в репозитории
+  currentPhotoName = dog.photo || '';
+  const select = document.getElementById('photoSelect');
   const preview = document.getElementById('preview');
-  preview.src = dog.photo;
-  preview.style.display = 'block';
+
+  if (currentPhotoName) {
+    const optionExists = Array.from(select.options).some(opt => opt.value === currentPhotoName);
+    if (optionExists) {
+      select.value = currentPhotoName;
+    } else {
+      // Фото не в списке — добавляем его как отдельную опцию (например, старое base64)
+      const opt = document.createElement('option');
+      opt.value = currentPhotoName;
+      opt.textContent = currentPhotoName.length > 40 ? currentPhotoName.slice(0, 37) + '...' : currentPhotoName;
+      select.appendChild(opt);
+      select.value = currentPhotoName;
+    }
+    preview.src = getImageUrl(currentPhotoName);
+    preview.style.display = 'block';
+  } else {
+    select.value = '';
+    preview.style.display = 'none';
+  }
 
   document.getElementById('formTitle').textContent = '✏️ Редактирование анкеты: ' + dog.name;
   document.getElementById('submitBtn').textContent = '💾 Сохранить изменения';
@@ -154,9 +213,13 @@ function cancelEdit() {
 
 function resetDogForm() {
   editingDogId = null;
-  currentPhotoBase64 = '';
+  currentPhotoName = '';
   document.getElementById('addDogForm').reset();
-  document.getElementById('preview').style.display = 'none';
+  const preview = document.getElementById('preview');
+  preview.style.display = 'none';
+  preview.removeAttribute('src');
+  const select = document.getElementById('photoSelect');
+  if (select) select.value = '';
   document.getElementById('formTitle').textContent = '🐕 Добавить новую собаку';
   document.getElementById('submitBtn').textContent = 'Добавить анкету собаки';
   document.getElementById('cancelEditBtn').style.display = 'none';
@@ -186,4 +249,5 @@ window.addEventListener('storage', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
   loadAdminContacts();
   renderAdminList();
+  loadRepoImages(false);
 });
