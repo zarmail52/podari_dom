@@ -89,6 +89,23 @@ function loadAndRenderDogs() {
   }
 }
 
+// Загружает данные собак из dogs.json в репозитории (GitHub) и кэширует в localStorage
+async function syncDogsFromGitHub() {
+  try {
+    const remoteDogs = await loadDogsFromGitHub();
+    if (Array.isArray(remoteDogs)) {
+      saveDogs(remoteDogs);
+      allDogs = remoteDogs;
+      const catalogSection = document.getElementById('catalogSection');
+      if (catalogSection && catalogSection.classList.contains('active')) {
+        applyCatalogFilter(false);
+      }
+    }
+  } catch (err) {
+    console.warn('Не удалось загрузить собак из GitHub, использую локальные данные:', err);
+  }
+}
+
 function renderDogs(dogsToRender, animate = true) {
   const container = document.getElementById('dogsContainer');
   if (!container) return;
@@ -366,6 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderContacts();
   checkHashRoute();
   loadAndRenderDogs();
+  syncDogsFromGitHub();
   initSearch();
 
   const activeSection = document.querySelector('.tab-section.active');

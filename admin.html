@@ -152,6 +152,20 @@
       </form>
     </section>
     <section class="admin-card">
+      <h2 class="section-title">🔑 GitHub-синхронизация</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.6;">
+        Для автоматической синхронизации данных собак с репозиторием <code>zarmail52/podari_dom</code> нужен
+        GitHub Personal Access Token с правом <strong>repo</strong>. Токен хранится только в вашем браузере (localStorage).
+        При добавлении, изменении или удалении собаки данные автоматически записываются в файл <code>dogs.json</code> на GitHub.
+      </p>
+      <div class="form-group">
+        <label for="githubToken">GitHub Personal Access Token:</label>
+        <input type="password" id="githubToken" placeholder="ghp_...">
+      </div>
+      <button type="button" id="saveTokenBtn">💾 Сохранить токен</button>
+      <div class="img-status" id="tokenStatus"></div>
+    </section>
+    <section class="admin-card">
       <h2 class="section-title" id="formTitle">🐕 Добавить новую собаку</h2>
       <form id="addDogForm">
         <div class="form-group"><label for="name">Кличка:</label><input type="text" id="name" required placeholder="Например: Гром"></div>

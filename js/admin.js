@@ -1,11 +1,49 @@
 /**
  * ЛОГИКА АДМИН-ПАНЕЛИ (js/admin.js)
  * Новая система картинок: фото выбираются из репозитория aaa (GitHub API)
+ * Автосинхронизация данных собак с GitHub (dogs.json)
  */
 
 let currentPhotoName = '';
 let editingDogId = null;
 let repoImages = [];
+
+// --- НАСТРОЙКИ GITHUB-ТОКЕНА ---
+function setTokenStatus(text, type) {
+  const status = document.getElementById('tokenStatus');
+  if (!status) return;
+  status.textContent = text;
+  status.className = 'img-status ' + (type || '');
+}
+
+function loadGithubToken() {
+  const input = document.getElementById('githubToken');
+  if (input) input.value = getGithubToken();
+}
+
+document.getElementById('saveTokenBtn')?.addEventListener('click', () => {
+  const input = document.getElementById('githubToken');
+  if (!input) return;
+  const token = input.value.trim();
+  if (!token) {
+    setTokenStatus('Введите токен.', 'error');
+    return;
+  }
+  setGithubToken(token);
+  setTokenStatus('Токен сохранён. Теперь добавление/удаление собак будет синхронизироваться с GitHub.', 'ok');
+});
+
+// Синхронизирует данные собак с GitHub после любого изменения
+async function syncDogsToRemote() {
+  const dogs = getDogs();
+  try {
+    await syncDogsToGitHub(dogs);
+    setTokenStatus('Данные успешно синхронизированы с GitHub (dogs.json).', 'ok');
+  } catch (err) {
+    console.error('Ошибка синхронизации с GitHub:', err);
+    setTokenStatus('Ошибка синхронизации: ' + err.message, 'error');
+  }
+}
 
 function loadAdminContacts() {
   const c = getContacts();
@@ -163,6 +201,7 @@ document.getElementById('addDogForm')?.addEventListener('submit', function(e) {
   resetDogForm();
 
   alert(editingDogId ? 'Анкета успешно обновлена!' : 'Собака успешно добавлена!');
+  syncDogsToRemote();
 });
 
 function editDog(id) {
@@ -229,6 +268,7 @@ function deleteDog(id) {
   if (confirm('Вы уверены, что хотите удалить эту анкету?')) {
     deleteDogById(id);
     renderAdminList();
+    syncDogsToRemote();
   }
 }
 
@@ -236,6 +276,7 @@ function clearAllData() {
   if (confirm('Очистить всю базу тестовых анкет собак?')) {
     localStorage.removeItem('dogsData');
     renderAdminList();
+    syncDogsToRemote();
   }
 }
 
@@ -250,4 +291,5 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAdminContacts();
   renderAdminList();
   loadRepoImages(false);
+  loadGithubToken();
 });

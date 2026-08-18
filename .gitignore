@@ -1,0 +1,8 @@
+# Временные файлы
+temp.txt
+*.tmp
+*.log
+
+# Системные файлы
+Thumbs.db
+.DS_Store

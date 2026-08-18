@@ -196,3 +196,72 @@ async function fetchRepoImages(force = false) {
 
   return images;
 }
+
+// --- СИНХРОНИЗАЦИЯ ДАННЫХ СОБАК ЧЕРЕЗ GITHUB API (dogs.json) ---
+// Репозиторий проекта, где хранится файл данных
+const DATA_REPO = 'podari_dom';
+const DATA_FILE = 'dogs.json';
+const GITHUB_TOKEN_KEY = 'githubToken';
+
+// --- Работа с GitHub-токеном ---
+function getGithubToken() {
+  return localStorage.getItem(GITHUB_TOKEN_KEY) || '';
+}
+
+function setGithubToken(token) {
+  localStorage.setItem(GITHUB_TOKEN_KEY, token.trim());
+}
+
+// Читает данные собак из dogs.json в репозитории (публичный доступ)
+async function loadDogsFromGitHub() {
+  const url = `https://raw.githubusercontent.com/${IMG_REPO_OWNER}/${DATA_REPO}/${IMG_BRANCH}/${DATA_FILE}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Не удалось загрузить dogs.json: ' + res.status);
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+// Записывает данные собак в dogs.json через GitHub API (требует токен)
+async function syncDogsToGitHub(dogs) {
+  const token = getGithubToken();
+  if (!token) {
+    throw new Error('Не указан GitHub-токен. Добавьте его в настройках админки.');
+  }
+
+  const apiUrl = `https://api.github.com/repos/${IMG_REPO_OWNER}/${DATA_REPO}/contents/${DATA_FILE}`;
+
+  // Получаем текущий sha файла (нужен для обновления)
+  let sha = null;
+  try {
+    const getRes = await fetch(apiUrl, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    if (getRes.ok) {
+      const meta = await getRes.json();
+      sha = meta.sha;
+    }
+  } catch (e) { /* файла может ещё не быть */ }
+
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(dogs, null, 2))));
+
+  const body = {
+    message: 'Синхронизация данных собак (авто)',
+    content: content
+  };
+  if (sha) body.sha = sha;
+
+  const res = await fetch(apiUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error('GitHub API error ' + res.status + ': ' + errText);
+  }
+  return await res.json();
+}
