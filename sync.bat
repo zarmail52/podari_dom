@@ -6,13 +6,30 @@ echo   Автосинхронизация проекта с GitHub
 echo ============================================
 echo.
 
-set "GIT=C:\Users\Обучающийся\AppData\Local\Programs\Git\cmd\git.exe"
+rem --- Поиск Git: сначала в PATH, затем в стандартных местах установки ---
+set "GIT="
+where git >nul 2>nul
+if %errorlevel%==0 (
+  for /f "delims=" %%I in ('where git') do (
+    set "GIT=%%I"
+    goto :git_found
+  )
+)
 
-if not exist "%GIT%" (
-  echo [ОШИБКА] Git не найден по пути: %GIT%
+if not defined GIT if exist "C:\Program Files\Git\cmd\git.exe" set "GIT=C:\Program Files\Git\cmd\git.exe"
+if not defined GIT if exist "C:\Program Files (x86)\Git\cmd\git.exe" set "GIT=C:\Program Files (x86)\Git\cmd\git.exe"
+if not defined GIT if exist "%LocalAppData%\Programs\Git\cmd\git.exe" set "GIT=%LocalAppData%\Programs\Git\cmd\git.exe"
+if not defined GIT if exist "%UserProfile%\AppData\Local\Programs\Git\cmd\git.exe" set "GIT=%UserProfile%\AppData\Local\Programs\Git\cmd\git.exe"
+
+:git_found
+if not defined GIT (
+  echo [ОШИБКА] Git не найден. Установите Git с https://git-scm.com/ или укажите путь вручную.
   pause
   exit /b 1
 )
+
+echo [ИНФО] Используется Git: %GIT%
+echo.
 
 cd /d "%~dp0"
 
