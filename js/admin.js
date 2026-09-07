@@ -1,6 +1,6 @@
 /**
  * ЛОГИКА АДМИН-ПАНЕЛИ (js/admin.js)
- * Новая система картинок: фото выбираются из репозитория aaa (GitHub API)
+ * Новая система картинок: фото выбираются из папки images/ репозитория podari_dom (GitHub API)
  * Автосинхронизация данных собак с GitHub (dogs.json)
  */
 
@@ -36,12 +36,16 @@ document.getElementById('saveTokenBtn')?.addEventListener('click', () => {
 // Синхронизирует данные собак с GitHub после любого изменения
 async function syncDogsToRemote() {
   const dogs = getDogs();
+  if (!getGithubToken()) {
+    setTokenStatus('⚠️ GitHub-токен не указан. Данные сохранены только локально (localStorage). Добавьте токен в настройках, чтобы синхронизировать с GitHub.', 'error');
+    return;
+  }
   try {
     await syncDogsToGitHub(dogs);
-    setTokenStatus('Данные успешно синхронизированы с GitHub (dogs.json).', 'ok');
+    setTokenStatus('✅ Данные успешно синхронизированы с GitHub (dogs.json). Сайт обновится автоматически.', 'ok');
   } catch (err) {
     console.error('Ошибка синхронизации с GitHub:', err);
-    setTokenStatus('Ошибка синхронизации: ' + err.message, 'error');
+    setTokenStatus('❌ Ошибка синхронизации: ' + err.message, 'error');
   }
 }
 
@@ -85,7 +89,7 @@ document.getElementById('contactsForm')?.addEventListener('submit', function(e) 
   alert('Контактная информация успешно сохранена!');
 });
 
-// --- ЗАГРУЗКА СПИСКА КАРТИНОК ИЗ РЕПОЗИТОРИЯ aaa ---
+// --- ЗАГРУЗКА СПИСКА КАРТИНОК ИЗ ПАПКИ images/ РЕПОЗИТОРИЯ podari_dom ---
 function setImgStatus(text, type) {
   const status = document.getElementById('imgStatus');
   if (!status) return;
@@ -97,15 +101,15 @@ async function loadRepoImages(force = false) {
   const select = document.getElementById('photoSelect');
   if (!select) return;
 
-  setImgStatus('Загрузка списка картинок из репозитория aaa...', 'loading');
+  setImgStatus('Загрузка списка картинок из папки images/...', 'loading');
   select.innerHTML = '<option value="">Загрузка...</option>';
 
   try {
     repoImages = await fetchRepoImages(force);
 
     if (repoImages.length === 0) {
-      select.innerHTML = '<option value="">Картинки не найдены в репозитории aaa</option>';
-      setImgStatus('В репозитории aaa не найдено изображений. Загрузите фото в корень репозитория.', 'error');
+      select.innerHTML = '<option value="">Картинки не найдены в папке images/</option>';
+      setImgStatus('В папке images/ репозитория podari_dom не найдено изображений. Загрузите фото в папку images/.', 'error');
       return;
     }
 
@@ -114,7 +118,7 @@ async function loadRepoImages(force = false) {
       options += `<option value="${escapeHTML(img.name)}">${escapeHTML(img.name)}</option>`;
     });
     select.innerHTML = options;
-    setImgStatus(`Найдено картинок: ${repoImages.length} (репозиторий zarmail52/aaa)`, 'ok');
+    setImgStatus(`Найдено картинок: ${repoImages.length} (папка images/ репозитория zarmail52/podari_dom)`, 'ok');
   } catch (err) {
     console.error('Ошибка загрузки списка картинок:', err);
     select.innerHTML = '<option value="">Ошибка загрузки списка картинок</option>';
@@ -183,7 +187,7 @@ function renderAdminList() {
 document.getElementById('addDogForm')?.addEventListener('submit', function(e) {
   e.preventDefault();
   if (!currentPhotoName) {
-    alert('Пожалуйста, выберите фото из репозитория aaa!');
+    alert('Пожалуйста, выберите фото из папки images/!');
     return;
   }
 

@@ -94,11 +94,18 @@ async function syncDogsFromGitHub() {
   try {
     const remoteDogs = await loadDogsFromGitHub();
     if (Array.isArray(remoteDogs)) {
-      saveDogs(remoteDogs);
-      allDogs = remoteDogs;
-      const catalogSection = document.getElementById('catalogSection');
-      if (catalogSection && catalogSection.classList.contains('active')) {
-        applyCatalogFilter(false);
+      // Сравниваем с текущими данными, чтобы не перерисовывать без необходимости
+      const currentDogs = getDogs();
+      const changed = JSON.stringify(currentDogs) !== JSON.stringify(remoteDogs);
+      if (changed) {
+        saveDogs(remoteDogs);
+        allDogs = remoteDogs;
+        const catalogSection = document.getElementById('catalogSection');
+        if (catalogSection && catalogSection.classList.contains('active')) {
+          applyCatalogFilter(false);
+        }
+      } else {
+        allDogs = currentDogs;
       }
     }
   } catch (err) {
@@ -378,12 +385,21 @@ window.addEventListener('storage', (e) => {
   }
 });
 
+// Периодическая проверка обновлений данных с GitHub (каждые 60 секунд)
+function startAutoSync() {
+  const SYNC_INTERVAL_MS = 60 * 1000;
+  setInterval(() => {
+    syncDogsFromGitHub();
+  }, SYNC_INTERVAL_MS);
+}
+
 // Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', () => {
   renderContacts();
   checkHashRoute();
   loadAndRenderDogs();
   syncDogsFromGitHub();
+  startAutoSync();
   initSearch();
 
   const activeSection = document.querySelector('.tab-section.active');

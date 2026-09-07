@@ -79,7 +79,12 @@ function saveContacts(contacts) {
 function getDogs() {
   try {
     const stored = localStorage.getItem('dogsData');
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    const data = JSON.parse(stored);
+    // Поддержка версионированного кэша: { version, dogs }
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.dogs)) return data.dogs;
+    return [];
   } catch (err) {
     console.error('Ошибка чтения базы собак из localStorage:', err);
     return [];
@@ -88,7 +93,11 @@ function getDogs() {
 
 function saveDogs(dogs) {
   try {
-    localStorage.setItem('dogsData', JSON.stringify(dogs));
+    localStorage.setItem('dogsData', JSON.stringify({
+      version: DOGS_DATA_VERSION,
+      savedAt: new Date().toISOString(),
+      dogs: dogs
+    }));
   } catch (err) {
     console.error('Ошибка сохранения базы собак в localStorage:', err);
     alert('Превышен лимит памяти хранилища браузера! Удалите неактуальные анкеты или используйте изображения меньшего размера.');
@@ -151,22 +160,23 @@ function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.75) {
 }
 
 // --- РЕПОЗИТОРИЙ С КАРТИНКАМИ (GitHub API) ---
-// Картинки подтягиваются из репозитория aaa через GitHub API
+// Картинки хранятся в папке images/ репозитория podari_dom
 const IMG_REPO_OWNER = 'zarmail52';
-const IMG_REPO = 'aaa';
+const IMG_REPO = 'podari_dom';
 const IMG_BRANCH = 'main';
+const IMG_DIR = 'images';
 const IMG_CACHE_KEY = 'repoImagesCache';
 const IMG_CACHE_TTL = 10 * 60 * 1000; // 10 минут
 
-// Возвращает полный URL картинки по имени файла из репозитория aaa
+// Возвращает полный URL картинки по имени файла из папки images/ репозитория podari_dom
 function getImageUrl(filename) {
   if (!filename) return '';
   // Если это уже полный URL (data:, http, https, //) — используем как есть
   if (/^(data:|https?:|\/\/)/i.test(filename)) return filename;
-  return `https://raw.githubusercontent.com/${IMG_REPO_OWNER}/${IMG_REPO}/${IMG_BRANCH}/${encodeURIComponent(filename)}`;
+  return `https://raw.githubusercontent.com/${IMG_REPO_OWNER}/${IMG_REPO}/${IMG_BRANCH}/${IMG_DIR}/${encodeURIComponent(filename)}`;
 }
 
-// Получает список картинок из корня репозитория aaa через GitHub API
+// Получает список картинок из папки images/ репозитория podari_dom через GitHub API
 async function fetchRepoImages(force = false) {
   // Используем кэш, чтобы не превышать лимиты GitHub API (60 запросов/час)
   if (!force) {
@@ -178,8 +188,11 @@ async function fetchRepoImages(force = false) {
     } catch (e) { /* игнорируем повреждённый кэш */ }
   }
 
-  const url = `https://api.github.com/repos/${IMG_REPO_OWNER}/${IMG_REPO}/contents/`;
-  const res = await fetch(url);
+  // Для приватного репозитория нужен токен
+  const token = getGithubToken();
+  const headers = token ? { 'Authorization': `token ${token}` } : {};
+  const url = `https://api.github.com/repos/${IMG_REPO_OWNER}/${IMG_REPO}/contents/${IMG_DIR}`;
+  const res = await fetch(url, { headers });
   if (!res.ok) throw new Error('GitHub API error: ' + res.status);
   const items = await res.json();
 
@@ -202,6 +215,9 @@ async function fetchRepoImages(force = false) {
 const DATA_REPO = 'podari_dom';
 const DATA_FILE = 'dogs.json';
 const GITHUB_TOKEN_KEY = 'githubToken';
+// Версия схемы данных. Увеличивайте при изменении структуры анкеты,
+// чтобы сайт не использовал устаревший кэш localStorage.
+const DOGS_DATA_VERSION = '1';
 
 // --- Работа с GitHub-токеном ---
 function getGithubToken() {
@@ -212,13 +228,91 @@ function setGithubToken(token) {
   localStorage.setItem(GITHUB_TOKEN_KEY, token.trim());
 }
 
-// Читает данные собак из dogs.json в репозитории (публичный доступ)
+// Адрес сайта на Vercel (откуда читаем dogs.json без токена)
+const SITE_BASE_URL = 'https://podari-dom.vercel.app';
+
+// Читает данные собак из dogs.json.
+// Порядок источников:
+//   1. raw.githubusercontent.com — основной источник (репозиторий публичный)
+//   2. Vercel (https://podari-dom.vercel.app/dogs.json) — fallback
+//   3. GitHub API (если задан токен) — последний fallback
 async function loadDogsFromGitHub() {
-  const url = `https://raw.githubusercontent.com/${IMG_REPO_OWNER}/${DATA_REPO}/${IMG_BRANCH}/${DATA_FILE}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Не удалось загрузить dogs.json: ' + res.status);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  // 1. Публичный raw-доступ (репозиторий podari_dom публичный)
+  try {
+    const rawUrl = `https://raw.githubusercontent.com/${IMG_REPO_OWNER}/${DATA_REPO}/${IMG_BRANCH}/${DATA_FILE}`;
+    const res = await fetch(rawUrl, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    // Пробуем следующий способ
+  }
+
+  // 2. Vercel — fallback для посетителей сайта
+  try {
+    const siteRes = await fetch(`${SITE_BASE_URL}/${DATA_FILE}`, { cache: 'no-store' });
+    if (siteRes.ok) {
+      const data = await siteRes.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    // Пробуем следующий способ
+  }
+
+  // 3. GitHub API (работает и с приватными репозиториями при наличии токена)
+  const token = getGithubToken();
+  const headers = token ? { 'Authorization': `token ${token}` } : {};
+  const apiUrl = `https://api.github.com/repos/${IMG_REPO_OWNER}/${DATA_REPO}/contents/${DATA_FILE}`;
+  const apiRes = await fetch(apiUrl, { headers });
+  if (!apiRes.ok) throw new Error('Не удалось загрузить dogs.json: ' + apiRes.status);
+  const meta = await apiRes.json();
+  if (meta && meta.content) {
+    const decoded = base64ToUtf8(meta.content);
+    const data = JSON.parse(decoded);
+    return Array.isArray(data) ? data : [];
+  }
+  return [];
+}
+
+// Декодирование base64 в UTF-8 строку (корректно обрабатывает кириллицу)
+function base64ToUtf8(base64) {
+  const clean = base64.replace(/\s/g, '');
+  try {
+    const binary = atob(clean);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    // TextDecoder доступен в современных браузерах
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    throw new Error('TextDecoder недоступен');
+  } catch (e) {
+    // Fallback: через URI-кодирование (работает везде)
+    try {
+      return decodeURIComponent(Array.prototype.map.call(atob(clean), c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join(''));
+    } catch (e2) {
+      return atob(clean);
+    }
+  }
+}
+
+// Кодирование UTF-8 строки в base64 (корректно обрабатывает кириллицу)
+function utf8ToBase64(str) {
+  try {
+    if (typeof TextEncoder !== 'undefined') {
+      const bytes = new TextEncoder('utf-8').encode(str);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    }
+    throw new Error('TextEncoder недоступен');
+  } catch (e) {
+    // Fallback: через URI-кодирование
+    return btoa(unescape(encodeURIComponent(str)));
+  }
 }
 
 // Записывает данные собак в dogs.json через GitHub API (требует токен)
@@ -242,7 +336,7 @@ async function syncDogsToGitHub(dogs) {
     }
   } catch (e) { /* файла может ещё не быть */ }
 
-  const content = btoa(unescape(encodeURIComponent(JSON.stringify(dogs, null, 2))));
+  const content = utf8ToBase64(JSON.stringify(dogs, null, 2));
 
   const body = {
     message: 'Синхронизация данных собак (авто)',
